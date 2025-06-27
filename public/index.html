@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transcritor de Áudio</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+      text-align: center;
+    }
+    input, button {
+      margin-top: 20px;
+      padding: 10px;
+      font-size: 16px;
+    }
+    audio {
+      margin-top: 20px;
+      width: 100%;
+    }
+    .audio-controls {
+      margin-top: 10px;
+    }
+    textarea {
+      width: 100%;
+      height: 200px;
+      margin-top: 20px;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Transcrição de Áudio</h1>
+  <form id="form-audio" enctype="multipart/form-data">
+    <input type="file" id="upload" name="audio" accept="audio/mp3,video/mp4">
+    <br>
+    <input type="text" id="link-audio" placeholder="Ou insira o link de um áudio .mp3 ou .mp4" style="width: 100%; margin-top: 10px;">
+    <br>
+    <audio id="player" controls></audio>
+    <div class="audio-controls">
+      <button type="button" id="retroceder">⏪ Voltar 10s</button>
+      <button type="button" id="avancar">Avançar 10s ⏩</button>
+    </div>
+    <br>
+    <button type="submit">Transcrever</button>
+    <button type="button" id="baixar">Baixar .doc</button>
+    <button type="button" id="recomecar">Recomeçar</button>
+    <br>
+    <textarea id="resultado" placeholder="Transcrição aparecerá aqui..."></textarea>
+  </form>
+
+  <script>
+    const upload = document.getElementById('upload');
+    const linkAudio = document.getElementById('link-audio');
+    const player = document.getElementById('player');
+    const resultado = document.getElementById('resultado');
+    const baixar = document.getElementById('baixar');
+    const recomecar = document.getElementById('recomecar');
+    const form = document.getElementById('form-audio');
+    const retroceder = document.getElementById('retroceder');
+    const avancar = document.getElementById('avancar');
+
+    let audioBlob = null;
+    let linkSelecionado = false;
+
+    upload.onchange = () => {
+      const file = upload.files[0];
+      if (file) {
+        audioBlob = file;
+        linkSelecionado = false;
+        player.src = URL.createObjectURL(file);
+        resultado.value = '';
+      }
+    };
+
+    linkAudio.onchange = () => {
+      const url = linkAudio.value.trim();
+      if (url) {
+        audioBlob = null;
+        linkSelecionado = true;
+        player.src = url;
+        resultado.value = '';
+      }
+    };
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+
+      if (!audioBlob && !linkSelecionado) {
+        alert('Por favor, envie um arquivo ou insira um link de áudio.');
+        return;
+      }
+
+      resultado.value = 'Transcrevendo... aguarde...';
+
+      try {
+        let response;
+
+        if (audioBlob) {
+          const formData = new FormData();
+          formData.append('audio', audioBlob);
+          response = await fetch('/transcrever?format=verbose', {
+            method: 'POST',
+            body: formData
+          });
+        } else {
+          response = await fetch(`/transcrever-link?url=${encodeURIComponent(linkAudio.value)}&format=verbose`, {
+            method: 'GET'
+          });
+        }
+
+        if (!response.ok) throw new Error('Erro ao transcrever.');
+        const texto = await response.text();
+        resultado.value = texto;
+      } catch (err) {
+        console.error(err);
+        resultado.value = 'Erro ao transcrever o áudio.';
+      }
+    };
+
+    baixar.onclick = () => {
+      const texto = resultado.value;
+      if (!texto) {
+        alert('Não há transcrição para baixar.');
+        return;
+      }
+      const blob = new Blob([texto], { type: 'application/msword' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'transcricao.doc';
+      link.click();
+    };
+
+    recomecar.onclick = () => {
+      upload.value = '';
+      linkAudio.value = '';
+      player.src = '';
+      resultado.value = '';
+      audioBlob = null;
+      linkSelecionado = false;
+    };
+
+    retroceder.onclick = () => {
+      player.currentTime = Math.max(0, player.currentTime - 10);
+    };
+
+    avancar.onclick = () => {
+      player.currentTime += 10;
+    };
+  </script>
+</body>
+</html>
